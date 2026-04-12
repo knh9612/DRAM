@@ -1,6 +1,9 @@
 package com.macdduck.dram.whisky.service;
 
+import com.macdduck.dram.global.exception.BusinessException;
+import com.macdduck.dram.global.exception.ErrorCode;
 import com.macdduck.dram.global.service.EmbeddingService;
+import com.macdduck.dram.whisky.dto.WhiskyDetailResponse;
 import com.macdduck.dram.whisky.dto.WhiskyListResponse;
 import com.macdduck.dram.whisky.repository.WhiskyRepository;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +23,12 @@ public class WhiskyService {
     private static final double SIMILARITY_THRESHOLD = 1.0;
     private static final int MAX_RESULTS = 30;
     private static final int PAGE_SIZE = 10;
+
+    public WhiskyDetailResponse getWhiskyDetail(Long whiskyId) {
+        return whiskyRepository.findById(whiskyId)
+                .map(WhiskyDetailResponse::from)
+                .orElseThrow(() -> new BusinessException(ErrorCode.WHISKY_NOT_FOUND));
+    }
 
     public List<WhiskyListResponse> getPopularWhiskies() {
         return whiskyRepository.findTop5ByWishlistCount().stream()
