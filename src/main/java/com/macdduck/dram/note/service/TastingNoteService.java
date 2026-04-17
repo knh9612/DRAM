@@ -2,7 +2,14 @@ package com.macdduck.dram.note.service;
 
 import com.macdduck.dram.global.config.OpenAiProperties;
 import com.macdduck.dram.global.enums.FlavorTag;
+import com.macdduck.dram.global.exception.BusinessException;
+import com.macdduck.dram.global.exception.ErrorCode;
 import com.macdduck.dram.note.dto.AiNoteRequest;
+import com.macdduck.dram.note.dto.TastingNoteCreateRequest;
+import com.macdduck.dram.note.entity.TastingNote;
+import com.macdduck.dram.note.repository.TastingNoteRepository;
+import com.macdduck.dram.user.entity.User;
+import com.macdduck.dram.user.repository.UserRepository;
 import com.macdduck.dram.whisky.entity.Whisky;
 import com.macdduck.dram.whisky.service.WhiskyService;
 import lombok.RequiredArgsConstructor;
@@ -19,7 +26,9 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class TastingNoteService {
 
+    private final TastingNoteRepository tastingNoteRepository;
     private final WhiskyService whiskyService;
+    private final UserRepository userRepository;
     private final OpenAiProperties openAiProperties;
 
     private final RestClient restClient = RestClient.builder()
@@ -30,6 +39,30 @@ public class TastingNoteService {
         Whisky whisky = whiskyService.getWhisky(request.whiskyId());
         String prompt = buildPrompt(whisky, request);
         return callChatCompletion(prompt);
+    }
+
+    @Transactional
+    public Long createNote(Long userId, TastingNoteCreateRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        Whisky whisky = whiskyService.getWhisky(request.whiskyId());
+
+        TastingNote note = TastingNote.builder()
+                .user(user)
+                .whisky(whisky)
+                .drinkingMethod(request.drinkingMethod())
+                .selectedTags(request.selectedTags())
+                .body(request.body())
+                .aftertaste(request.aftertaste())
+                .rating(request.rating())
+                .memo(request.memo())
+                .build();
+
+        if (request.aiNote() != null) {
+            note.updateAiNote(request.aiNote());
+        }
+
+        return tastingNoteRepository.save(note).getId();
     }
 
     private String buildPrompt(Whisky whisky, AiNoteRequest request) {
