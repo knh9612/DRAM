@@ -5,6 +5,7 @@ import com.macdduck.dram.global.exception.ErrorCode;
 import com.macdduck.dram.global.service.EmbeddingService;
 import com.macdduck.dram.whisky.dto.WhiskyDetailResponse;
 import com.macdduck.dram.whisky.dto.WhiskyListResponse;
+import com.macdduck.dram.whisky.entity.Whisky;
 import com.macdduck.dram.whisky.repository.WhiskyRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -24,10 +25,13 @@ public class WhiskyService {
     private static final int MAX_RESULTS = 30;
     private static final int PAGE_SIZE = 10;
 
-    public WhiskyDetailResponse getWhiskyDetail(Long whiskyId) {
+    public Whisky getWhisky(Long whiskyId) {
         return whiskyRepository.findById(whiskyId)
-                .map(WhiskyDetailResponse::from)
                 .orElseThrow(() -> new BusinessException(ErrorCode.WHISKY_NOT_FOUND));
+    }
+
+    public WhiskyDetailResponse getWhiskyDetail(Long whiskyId) {
+        return WhiskyDetailResponse.from(getWhisky(whiskyId));
     }
 
     public List<WhiskyListResponse> getPopularWhiskies() {
