@@ -1,3 +1,6 @@
+-- 기존 데이터 초기화 (dev 환경 재시작 시 중복 방지)
+TRUNCATE wishlists, tasting_notes, users, whiskies RESTART IDENTITY CASCADE;
+
 -- Whiskies
 INSERT INTO whiskies (name_en, name_ko, image_file, alcohol_by_volume, style, country, region, price, nose_tags, palate_tags, body, aftertaste, description, embedding_text, created_at, updated_at) VALUES ('Glenfiddich 12', '글렌피딕 12년', NULL, 40.0, 'Single Malt', 'Scotland', 'Speyside', 55000, ARRAY['APPLE_PEAR', 'HONEY', 'OAK'], ARRAY['VANILLA', 'CREAMY', 'MALT'], 'LIGHT', 'MEDIUM', '입문자에게 추천하는 대표적인 싱글몰트. 가볍고 부드러운 과일향이 특징.', '글렌피딕 12년 싱글몰트 스페이사이드 가벼운 부드러운 과일향 사과 배 꿀 오크 바닐라 크림 몰트 입문용', NOW(), NOW());
 INSERT INTO whiskies (name_en, name_ko, image_file, alcohol_by_volume, style, country, region, price, nose_tags, palate_tags, body, aftertaste, description, embedding_text, created_at, updated_at) VALUES ('Macallan 12 Sherry Oak', '맥캘란 12년 셰리오크', NULL, 40.0, 'Single Malt', 'Scotland', 'Speyside', 89000, ARRAY['DRIED_FRUIT', 'CARAMEL', 'VANILLA'], ARRAY['CHOCOLATE', 'HONEY', 'OAK'], 'MEDIUM', 'LONG', '셰리 캐스크 숙성의 정수. 풍부한 드라이프루트와 초콜릿 풍미.', '맥캘란 12년 셰리오크 싱글몰트 스페이사이드 풍부한 건과일 캐러멜 바닐라 초콜릿 꿀 오크 셰리캐스크 달콤한', NOW(), NOW());
