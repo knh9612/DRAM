@@ -25,6 +25,7 @@ server:
 openai:
   api-key: ${OPENAI_API_KEY:}
   embedding-model: text-embedding-3-small
+  chat-model: gpt-4o-mini
 
 logging:
   level:

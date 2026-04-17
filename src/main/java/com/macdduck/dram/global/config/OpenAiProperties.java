@@ -13,4 +13,5 @@ public class OpenAiProperties {
 
     private String apiKey;
     private String embeddingModel;
+    private String chatModel;
 }
