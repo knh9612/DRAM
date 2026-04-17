@@ -10,8 +10,7 @@ public record WhiskyListResponse(
         String style,
         String country,
         String region,
-        Double alcoholByVolume,
-        Integer price
+        Double alcoholByVolume
 ) {
     public static WhiskyListResponse from(Whisky whisky) {
         return new WhiskyListResponse(
@@ -22,8 +21,7 @@ public record WhiskyListResponse(
                 whisky.getStyle(),
                 whisky.getCountry(),
                 whisky.getRegion(),
-                whisky.getAlcoholByVolume(),
-                whisky.getPrice()
+                whisky.getAlcoholByVolume()
         );
     }
 }
