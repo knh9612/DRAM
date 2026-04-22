@@ -21,4 +21,11 @@ public class UserService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         return UserProfileResponse.from(user);
     }
+
+    @Transactional
+    public void updateReminderEnabled(Long userId, Boolean reminderEnabled) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        user.updateReminderEnabled(reminderEnabled);
+    }
 }

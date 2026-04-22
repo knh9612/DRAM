@@ -45,6 +45,10 @@ public class User extends BaseTimeEntity {
     @Column(columnDefinition = "TEXT")
     private String fcmToken;
 
+    public void updateReminderEnabled(Boolean reminderEnabled) {
+        this.reminderEnabled = reminderEnabled;
+    }
+
     @Builder
     private User(String nickname, String email, String profileImage,
                 String oauthProvider, String oauthId) {
