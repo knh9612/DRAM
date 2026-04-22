@@ -6,6 +6,7 @@ import com.macdduck.dram.global.exception.BusinessException;
 import com.macdduck.dram.global.exception.ErrorCode;
 import com.macdduck.dram.note.dto.AiNoteRequest;
 import com.macdduck.dram.note.dto.TastingNoteCreateRequest;
+import com.macdduck.dram.note.dto.TastingNoteSummaryResponse;
 import com.macdduck.dram.note.entity.TastingNote;
 import com.macdduck.dram.note.repository.TastingNoteRepository;
 import com.macdduck.dram.user.entity.User;
@@ -34,6 +35,12 @@ public class TastingNoteService {
     private final RestClient restClient = RestClient.builder()
             .baseUrl("https://api.openai.com")
             .build();
+
+    public List<TastingNoteSummaryResponse> getNotes(Long userId) {
+        return tastingNoteRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
+                .map(TastingNoteSummaryResponse::from)
+                .toList();
+    }
 
     public String generateAiNote(AiNoteRequest request) {
         Whisky whisky = whiskyService.getWhisky(request.whiskyId());

@@ -2,11 +2,13 @@ package com.macdduck.dram.note.controller;
 
 import com.macdduck.dram.note.dto.AiNoteRequest;
 import com.macdduck.dram.note.dto.TastingNoteCreateRequest;
+import com.macdduck.dram.note.dto.TastingNoteSummaryResponse;
 import com.macdduck.dram.note.service.TastingNoteService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -15,6 +17,11 @@ import java.util.Map;
 public class TastingNoteController {
 
     private final TastingNoteService tastingNoteService;
+
+    @GetMapping
+    public List<TastingNoteSummaryResponse> getNotes(@RequestParam Long userId) {
+        return tastingNoteService.getNotes(userId);
+    }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
