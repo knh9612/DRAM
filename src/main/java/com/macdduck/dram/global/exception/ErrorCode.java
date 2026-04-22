@@ -29,6 +29,7 @@ public enum ErrorCode {
 
     // Note
     NOTE_NOT_FOUND(HttpStatus.NOT_FOUND, "테이스팅 노트를 찾을 수 없습니다."),
+    NOTE_ACCESS_DENIED(HttpStatus.FORBIDDEN, "해당 테이스팅 노트에 접근 권한이 없습니다."),
 
     // Chat
     SESSION_LIMIT_EXCEEDED(HttpStatus.BAD_REQUEST, "최대 세션 수를 초과했습니다.");

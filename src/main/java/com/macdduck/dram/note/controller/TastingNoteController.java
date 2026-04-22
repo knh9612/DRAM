@@ -2,6 +2,7 @@ package com.macdduck.dram.note.controller;
 
 import com.macdduck.dram.note.dto.AiNoteRequest;
 import com.macdduck.dram.note.dto.TastingNoteCreateRequest;
+import com.macdduck.dram.note.dto.TastingNoteResponse;
 import com.macdduck.dram.note.dto.TastingNoteSummaryResponse;
 import com.macdduck.dram.note.service.TastingNoteService;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,11 @@ public class TastingNoteController {
     @GetMapping
     public List<TastingNoteSummaryResponse> getNotes(@RequestParam Long userId) {
         return tastingNoteService.getNotes(userId);
+    }
+
+    @GetMapping("/{noteId}")
+    public TastingNoteResponse getNote(@RequestParam Long userId, @PathVariable Long noteId) {
+        return tastingNoteService.getNote(userId, noteId);
     }
 
     @PostMapping

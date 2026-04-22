@@ -6,6 +6,7 @@ import com.macdduck.dram.global.exception.BusinessException;
 import com.macdduck.dram.global.exception.ErrorCode;
 import com.macdduck.dram.note.dto.AiNoteRequest;
 import com.macdduck.dram.note.dto.TastingNoteCreateRequest;
+import com.macdduck.dram.note.dto.TastingNoteResponse;
 import com.macdduck.dram.note.dto.TastingNoteSummaryResponse;
 import com.macdduck.dram.note.entity.TastingNote;
 import com.macdduck.dram.note.repository.TastingNoteRepository;
@@ -40,6 +41,15 @@ public class TastingNoteService {
         return tastingNoteRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
                 .map(TastingNoteSummaryResponse::from)
                 .toList();
+    }
+
+    public TastingNoteResponse getNote(Long userId, Long noteId) {
+        TastingNote note = tastingNoteRepository.findById(noteId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOTE_NOT_FOUND));
+        if (!note.getUser().getId().equals(userId)) {
+            throw new BusinessException(ErrorCode.NOTE_ACCESS_DENIED);
+        }
+        return TastingNoteResponse.from(note);
     }
 
     public String generateAiNote(AiNoteRequest request) {
