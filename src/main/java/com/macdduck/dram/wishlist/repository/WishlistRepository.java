@@ -13,4 +13,5 @@ public interface WishlistRepository extends JpaRepository<Wishlist, Long> {
     @Query("SELECT w FROM Wishlist w JOIN FETCH w.whisky WHERE w.user.id = :userId ORDER BY w.createdAt DESC")
     List<Wishlist> findByUserId(@Param("userId") Long userId);
 
+    boolean existsByUserIdAndWhiskyId(Long userId, Long whiskyId);
 }

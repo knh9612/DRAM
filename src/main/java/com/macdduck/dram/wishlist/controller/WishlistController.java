@@ -3,13 +3,12 @@ package com.macdduck.dram.wishlist.controller;
 import com.macdduck.dram.wishlist.dto.WishlistResponse;
 import com.macdduck.dram.wishlist.service.WishlistService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/wishlists")
@@ -26,5 +25,11 @@ public class WishlistController {
     @GetMapping
     public ResponseEntity<List<WishlistResponse>> getWishlist(@RequestParam Long userId) {
         return ResponseEntity.ok(wishlistService.getWishlist(userId));
+    }
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public Map<String, Long> addWishlist(@RequestParam Long userId, @RequestParam Long whiskyId) {
+        return Map.of("id", wishlistService.addWishlist(userId, whiskyId));
     }
 }
