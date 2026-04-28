@@ -47,6 +47,10 @@ public class WhiskyService {
      * 3. pgvector의 <=> 연산자로 DB에 저장된 위스키 벡터들과 코사인 거리 비교
      * 4. 임계값(0.5) 이하인 결과만, 유사도 높은 순으로 반환
      */
+    public List<Whisky> searchByVector(float[] vector, int limit) {
+        return whiskyRepository.searchByEmbedding(toVectorString(vector), SIMILARITY_THRESHOLD, limit);
+    }
+
     public List<WhiskyListResponse> search(String query, int page) {
         float[] queryEmbedding = embeddingService.embed(query);
 
