@@ -51,6 +51,10 @@ public class WhiskyService {
         return whiskyRepository.searchByEmbedding(toVectorString(vector), SIMILARITY_THRESHOLD, limit);
     }
 
+    public List<Whisky> findByIds(List<Long> ids) {
+        return whiskyRepository.findAllById(ids);
+    }
+
     public List<WhiskyListResponse> search(String query, int page) {
         float[] queryEmbedding = embeddingService.embed(query);
 

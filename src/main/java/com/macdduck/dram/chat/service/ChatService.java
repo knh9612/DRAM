@@ -1,5 +1,8 @@
 package com.macdduck.dram.chat.service;
 
+import com.macdduck.dram.chat.dto.ChatMessageResponse;
+import com.macdduck.dram.chat.dto.ChatSessionMessagesResponse;
+import com.macdduck.dram.chat.dto.ChatSessionSummaryResponse;
 import com.macdduck.dram.chat.dto.RecommendedWhiskyResponse;
 import com.macdduck.dram.chat.model.ChatMessage;
 import com.macdduck.dram.chat.model.ChatSession;
@@ -46,6 +49,50 @@ public class ChatService {
     private final RestClient restClient = RestClient.builder()
             .baseUrl("https://api.openai.com")
             .build();
+
+    @Transactional(readOnly = true)
+    public List<ChatSessionSummaryResponse> getSessions(Long userId) {
+        return chatRepository.getSessionsByUser(userId).stream()
+                .sorted(Comparator.comparing(ChatSession::getUpdatedAt).reversed())
+                .map(ChatSessionSummaryResponse::from)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public ChatSessionMessagesResponse getSessionMessages(Long userId, String sessionId) {
+        ChatSession session = chatRepository.findSession(userId, sessionId)
+                .orElseThrow(() -> new IllegalArgumentException("세션을 찾을 수 없습니다."));
+
+        List<ChatMessage> messages = chatRepository.getMessagesBySession(sessionId);
+
+        Set<Long> allWhiskyIds = messages.stream()
+                .map(ChatMessage::getRecommendedIds)
+                .filter(Objects::nonNull)
+                .flatMap(List::stream)
+                .collect(Collectors.toSet());
+
+        Map<Long, RecommendedWhiskyResponse> whiskyMap = allWhiskyIds.isEmpty()
+                ? Map.of()
+                : whiskyService.findByIds(new ArrayList<>(allWhiskyIds)).stream()
+                        .collect(Collectors.toMap(
+                                Whisky::getId,
+                                RecommendedWhiskyResponse::from
+                        ));
+
+        List<ChatMessageResponse> messageResponses = messages.stream()
+                .map(msg -> {
+                    List<RecommendedWhiskyResponse> recs = msg.getRecommendedIds() == null
+                            ? List.of()
+                            : msg.getRecommendedIds().stream()
+                                    .map(whiskyMap::get)
+                                    .filter(Objects::nonNull)
+                                    .toList();
+                    return new ChatMessageResponse(msg.getRole(), msg.getContent(), recs);
+                })
+                .toList();
+
+        return new ChatSessionMessagesResponse(sessionId, session.getTitle(), messageResponses);
+    }
 
     @Transactional(readOnly = true)
     public SseEmitter startChat(Long userId, String message) {
