@@ -14,8 +14,12 @@ import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Repository
 @RequiredArgsConstructor
@@ -40,19 +44,31 @@ public class ChatRepository {
         return sessionTable().query(qc).items().stream().toList();
     }
 
+    public Optional<ChatSession> findSession(Long userId, String sessionId) {
+        return Optional.ofNullable(sessionTable().getItem(Key.builder()
+                .partitionValue("USER#" + userId)
+                .sortValue("SESSION#" + sessionId)
+                .build()));
+    }
+
     public void saveSession(ChatSession session) {
         sessionTable().putItem(session);
     }
 
-    public void updateSessionTimestamp(Long userId, String sessionId, String updatedAt) {
+    public void touchSession(Long userId, String sessionId) {
+        String now = LocalDateTime.now().toString();
+        long ttl = Instant.now().plus(7, ChronoUnit.DAYS).getEpochSecond();
         dynamoDbClient.updateItem(UpdateItemRequest.builder()
                 .tableName(properties.getTableName())
                 .key(Map.of(
                         "PK", AttributeValue.fromS("USER#" + userId),
                         "SK", AttributeValue.fromS("SESSION#" + sessionId)
                 ))
-                .updateExpression("SET updatedAt = :updatedAt")
-                .expressionAttributeValues(Map.of(":updatedAt", AttributeValue.fromS(updatedAt)))
+                .updateExpression("SET updatedAt = :updatedAt, ttl = :ttl")
+                .expressionAttributeValues(Map.of(
+                        ":updatedAt", AttributeValue.fromS(now),
+                        ":ttl", AttributeValue.fromN(String.valueOf(ttl))
+                ))
                 .build());
     }
 
@@ -75,6 +91,13 @@ public class ChatRepository {
 
     public void saveMessage(ChatMessage message) {
         messageTable().putItem(message);
+    }
+
+    public List<ChatMessage> getMessagesBySession(String sessionId) {
+        QueryConditional qc = QueryConditional.sortBeginsWith(
+                Key.builder().partitionValue("SESSION#" + sessionId).sortValue("MSG#").build()
+        );
+        return messageTable().query(qc).items().stream().toList();
     }
 
 }

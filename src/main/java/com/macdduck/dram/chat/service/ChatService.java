@@ -23,6 +23,10 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -32,6 +36,7 @@ public class ChatService {
     private static final int AI_SEARCH_LIMIT = 5;
     private static final int PREFERENCE_PRIOR_K = 5;
     private static final double MAX_PREFERENCE_WEIGHT = 0.4;
+    private static final Pattern RECOMMEND_MARKER = Pattern.compile("\\[RECOMMEND:\\s*([\\d,\\s]+)]");
     private final ChatRepository chatRepository;
     private final WhiskyService whiskyService;
     private final EmbeddingService embeddingService;
@@ -67,8 +72,13 @@ public class ChatService {
 
                 saveMessage(sessionId, "user", message, List.of());
 
+                List<Map<String, String>> chatMessages = List.of(
+                        Map.of("role", "system", "content", buildStartSystemPrompt(whiskies)),
+                        Map.of("role", "user", "content", message)
+                );
+
                 StringBuilder content = new StringBuilder();
-                streamGptResponse(message, whiskies, token -> {
+                streamGptResponse(chatMessages, token -> {
                     content.append(token);
                     emitter.send(SseEmitter.event().name("token").data(Map.of("token", token)));
                 });
@@ -77,8 +87,104 @@ public class ChatService {
 
                 saveMessage(sessionId, "assistant", content.toString(), recommendedIds);
 
-                String now = LocalDateTime.now().toString();
-                chatRepository.updateSessionTimestamp(userId, sessionId, now);
+                chatRepository.touchSession(userId, sessionId);
+
+                emitter.send(SseEmitter.event().name("done").data(Map.of()));
+                emitter.complete();
+
+            } catch (Exception e) {
+                emitter.completeWithError(e);
+            }
+        });
+
+        return emitter;
+    }
+
+    @Transactional(readOnly = true)
+    public SseEmitter sendMessage(Long userId, String sessionId, String message) {
+        chatRepository.findSession(userId, sessionId)
+                .orElseThrow(() -> new IllegalArgumentException("세션을 찾을 수 없습니다."));
+
+        List<ChatMessage> history = chatRepository.getMessagesBySession(sessionId);
+
+        float[] queryVector = embeddingService.embed(message);
+        float[] finalVector = blendWithPreference(userId, queryVector);
+        List<Whisky> candidates = whiskyService.searchByVector(finalVector, AI_SEARCH_LIMIT);
+        Map<Long, Whisky> candidateMap = candidates.stream()
+                .collect(Collectors.toMap(Whisky::getId, Function.identity()));
+
+        SseEmitter emitter = new SseEmitter(180_000L);
+        emitter.onTimeout(emitter::complete);
+        emitter.onError(e -> emitter.complete());
+
+        CompletableFuture.runAsync(() -> {
+            try {
+                saveMessage(sessionId, "user", message, List.of());
+
+                List<Map<String, String>> chatMessages = new ArrayList<>();
+                chatMessages.add(Map.of("role", "system", "content", buildFollowUpSystemPrompt(candidates)));
+                for (ChatMessage msg : history) {
+                    chatMessages.add(Map.of("role", msg.getRole(), "content", msg.getContent()));
+                }
+                chatMessages.add(Map.of("role", "user", "content", message));
+
+                StringBuilder content = new StringBuilder();
+                StringBuilder pending = new StringBuilder();
+                boolean[] buffering = {false};
+
+                streamGptResponse(chatMessages, token -> {
+                    content.append(token);
+
+                    if (buffering[0]) {
+                        pending.append(token);
+                        return;
+                    }
+
+                    int idx = token.indexOf('[');
+                    if (idx >= 0) {
+                        String before = token.substring(0, idx);
+                        if (!before.isEmpty()) {
+                            emitter.send(SseEmitter.event().name("token").data(Map.of("token", before)));
+                        }
+                        pending.append(token.substring(idx));
+                        buffering[0] = true;
+                        return;
+                    }
+
+                    emitter.send(SseEmitter.event().name("token").data(Map.of("token", token)));
+                });
+
+                List<Long> recommendedIds = List.of();
+                if (!pending.isEmpty()) {
+                    Matcher m = RECOMMEND_MARKER.matcher(pending);
+                    if (m.find()) {
+                        String before = pending.substring(0, m.start());
+                        if (!before.isEmpty()) {
+                            emitter.send(SseEmitter.event().name("token").data(Map.of("token", before)));
+                        }
+                        recommendedIds = Arrays.stream(m.group(1).split(","))
+                                .map(String::trim)
+                                .filter(s -> !s.isEmpty())
+                                .map(Long::parseLong)
+                                .filter(candidateMap::containsKey)
+                                .toList();
+                    } else {
+                        emitter.send(SseEmitter.event().name("token").data(Map.of("token", pending.toString())));
+                    }
+                }
+
+                if (!recommendedIds.isEmpty()) {
+                    List<RecommendedWhiskyResponse> recs = recommendedIds.stream()
+                            .map(candidateMap::get)
+                            .map(RecommendedWhiskyResponse::from)
+                            .toList();
+                    emitter.send(SseEmitter.event().name("recommendations").data(recs));
+                }
+
+                String cleanContent = RECOMMEND_MARKER.matcher(content.toString()).replaceAll("").trim();
+                saveMessage(sessionId, "assistant", cleanContent, recommendedIds);
+
+                chatRepository.touchSession(userId, sessionId);
 
                 emitter.send(SseEmitter.event().name("done").data(Map.of()));
                 emitter.complete();
@@ -177,11 +283,7 @@ public class ChatService {
         return avg;
     }
 
-    private void streamGptResponse(String userMessage, List<Whisky> whiskies, TokenCallback callback) {
-        List<Map<String, String>> messages = new ArrayList<>();
-        messages.add(Map.of("role", "system", "content", buildSystemPrompt(whiskies)));
-        messages.add(Map.of("role", "user", "content", userMessage));
-
+    private void streamGptResponse(List<Map<String, String>> messages, TokenCallback callback) {
         Map<String, Object> body = Map.of(
                 "model", openAiProperties.getChatModel(),
                 "stream", true,
@@ -217,11 +319,11 @@ public class ChatService {
         }
     }
 
-    private String buildSystemPrompt(List<Whisky> whiskies) {
+    private String buildStartSystemPrompt(List<Whisky> whiskies) {
         StringBuilder sb = new StringBuilder("""
                 당신은 친근한 위스키 소믈리에입니다. 아래 위스키 정보를 참고하여 위스키를 잘 모르는 입문자도 이해하기 쉽게 추천해주세요.
                 3개 내외로 추천하고, 각 위스키의 특징을 간략히 설명해주세요.
-                
+
                 추천 위스키 목록:
                 """);
 
@@ -229,6 +331,29 @@ public class ChatService {
             Whisky w = whiskies.get(i);
             sb.append(String.format("%d. %s (%s) — %s, %s%n", i + 1, w.getNameKo(), w.getNameEn(), w.getStyle(), w.getCountry()));
             if (w.getDescription() != null) sb.append("   ").append(w.getDescription()).append("\n");
+        }
+
+        return sb.toString();
+    }
+
+    private String buildFollowUpSystemPrompt(List<Whisky> candidates) {
+        StringBuilder sb = new StringBuilder("""
+                당신은 친근한 위스키 소믈리에입니다. 이전 대화 맥락을 이어가며 위스키를 잘 모르는 입문자도 이해하기 쉽게 답변해주세요.
+
+                중요한 규칙:
+                - 응답 본문에는 절대 대괄호 '['를 사용하지 마세요.
+                - 사용자가 새로운 위스키 추천을 원하는 경우, 아래 후보 위스키 중에서 골라 응답 마지막 줄에 `[RECOMMEND: id1,id2,id3]` 형식으로 ID만 회신하세요. (최대 3개)
+                - 단순히 이전 추천 안에서 좁혀가는 답변일 때는 `[RECOMMEND: ...]`를 출력하지 마세요.
+
+                참고할 수 있는 후보 위스키:
+                """);
+
+        for (Whisky w : candidates) {
+            sb.append(String.format("- ID %d: %s (%s) — %s, %s%n",
+                    w.getId(), w.getNameKo(), w.getNameEn(), w.getStyle(), w.getCountry()));
+            if (w.getDescription() != null) {
+                sb.append("  ").append(w.getDescription()).append("\n");
+            }
         }
 
         return sb.toString();
