@@ -59,10 +59,13 @@ public class ChatService {
 
         CompletableFuture.runAsync(() -> {
             try {
-                String sessionId = initSession(userId, message);
-                saveMessage(sessionId, "user", message, List.of());
+                SessionInit init = initSession(userId, message);
+                String sessionId = init.sessionId();
 
-                emitter.send(SseEmitter.event().name("recommendations").data(recommendations));
+                emitter.send(SseEmitter.event().name("session")
+                        .data(Map.of("sessionId", sessionId, "title", init.title())));
+
+                saveMessage(sessionId, "user", message, List.of());
 
                 StringBuilder content = new StringBuilder();
                 streamGptResponse(message, whiskies, token -> {
@@ -70,12 +73,14 @@ public class ChatService {
                     emitter.send(SseEmitter.event().name("token").data(Map.of("token", token)));
                 });
 
+                emitter.send(SseEmitter.event().name("recommendations").data(recommendations));
+
                 saveMessage(sessionId, "assistant", content.toString(), recommendedIds);
 
                 String now = LocalDateTime.now().toString();
                 chatRepository.updateSessionTimestamp(userId, sessionId, now);
 
-                emitter.send(SseEmitter.event().name("done").data(Map.of("sessionId", sessionId)));
+                emitter.send(SseEmitter.event().name("done").data(Map.of()));
                 emitter.complete();
 
             } catch (Exception e) {
@@ -86,7 +91,7 @@ public class ChatService {
         return emitter;
     }
 
-    private String initSession(Long userId, String firstMessage) {
+    private SessionInit initSession(Long userId, String firstMessage) {
         List<ChatSession> sessions = chatRepository.getSessionsByUser(userId);
 
         if (sessions.size() >= MAX_SESSIONS) {
@@ -112,7 +117,10 @@ public class ChatService {
                 .ttl(ttl)
                 .build());
 
-        return sessionId;
+        return new SessionInit(sessionId, title);
+    }
+
+    private record SessionInit(String sessionId, String title) {
     }
 
     private void saveMessage(String sessionId, String role, String content, List<Long> recommendedIds) {
